@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "in.kotty.awbpackscan",
+    "sha256_cert_fingerprints": ["DC:67:32:1C:13:C6:15:B0:94:16:4B:20:1A:5E:19:1F:E3:39:A4:56:D9:F9:EF:3F:69:58:CE:D5:20:4A:3D:D9"]
+  }
+}]

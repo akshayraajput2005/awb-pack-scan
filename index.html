@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<title>AWB Pack Scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+  :root {
+    --bg:#EEF2F6; --surface:#FFFFFF; --ink:#0E1726; --muted:#5B6B80; --line:#E2E8F0;
+    --brand:#1D4ED8; --brand-soft:#E0E8FF;
+    --green:#16A34A; --green-soft:#DCFCE7; --red:#E5262E; --red-soft:#FEE2E2; --amber:#D97706; --amber-soft:#FEF3C7;
+    --radius:16px; --shadow:0 1px 2px rgba(14,23,38,.05);
+    --dock:148px;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); font-family:"Plus Jakarta Sans", system-ui, sans-serif; font-size:16px; line-height:1.45; font-variant-numeric:tabular-nums; }
+  p, h2, ol { margin:0; }
+  button { font:inherit; color:inherit; cursor:pointer; }
+  :focus-visible { outline:3px solid var(--brand); outline-offset:2px; }
+  [hidden] { display:none !important; }
+
+  /* top bar */
+  .appbar { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:12px; padding:12px 16px; padding-top:max(12px, env(safe-area-inset-top)); background:rgba(255,255,255,.92); backdrop-filter:saturate(1.4) blur(12px); border-bottom:1px solid var(--line); }
+  /* logo tile: the figure zoomed to head and shoulders */
+  .logo { flex:none; position:relative; width:42px; height:42px; border-radius:12px; overflow:hidden; background:#fff; border:1px solid var(--line); box-shadow:0 2px 6px rgba(14,23,38,.12); }
+  .logo img { position:absolute; width:78px; height:auto; left:-18px; top:-3px; image-rendering:pixelated; }
+  .tape { flex:none; padding:4px 10px; border-radius:8px; background:var(--ink); color:#fff; font-weight:700; font-size:13px; letter-spacing:.02em; }
+  .who { flex:1; min-width:0; }
+  .appname { font-weight:700; font-size:15px; }
+  .greet { margin:4px 2px 16px; }
+  #hello { font-size:19px; font-weight:700; letter-spacing:-.01em; }
+  #today { font-size:13px; color:var(--muted); margin-top:2px; }
+  #sheetinfo { font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .live { flex:none; display:flex; align-items:center; gap:6px; padding:4px 9px; border-radius:999px; background:var(--green-soft); color:var(--green); font-size:12px; font-weight:600; }
+  .live::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+  .live.off { background:var(--red-soft); color:var(--red); }
+
+  main { max-width:560px; margin:0 auto; padding:16px 16px calc(var(--dock) + 24px); }
+  .view > * + * { margin-top:12px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; }
+  h2 { font-size:15px; font-weight:700; display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  h2 small { font-size:12.5px; font-weight:500; color:var(--muted); }
+
+  /* progress */
+  .hero { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:18px; }
+  .ring { width:136px; height:136px; position:relative; }
+  .ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+  .ring circle { fill:none; stroke-width:10; }
+  .ring .track { stroke:var(--red); }
+  .ring .arc { stroke:var(--green); stroke-linecap:round; transition:stroke-dasharray .5s ease-out; }
+  .ring .mid { position:absolute; inset:0; display:grid; place-content:center; text-align:center; }
+  #ndone { font-size:28px; font-weight:800; line-height:1; letter-spacing:-.02em; }
+  #ntotal { font-size:12px; color:var(--muted); margin-top:4px; }
+  .stats { display:grid; gap:0; }
+  .stat { padding:10px 0; }
+  .stat + .stat { border-top:1px solid var(--line); }
+  .stat span { display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--muted); }
+  .stat span::before { content:''; width:8px; height:8px; border-radius:50%; background:currentColor; }
+  .stat.g span::before { background:var(--green); } .stat.r span::before { background:var(--red); }
+  .stat b { display:block; font-size:22px; font-weight:800; line-height:1.2; margin-top:2px; }
+  .stat.g b { color:var(--green); } .stat.r b { color:var(--ink); }
+
+  /* camera */
+  #reader { position:relative; border-radius:var(--radius); overflow:hidden; background:#000; box-shadow:var(--shadow); }
+  #reader video { display:block; width:100%; }
+  .guide { position:absolute; left:5%; right:5%; top:32%; bottom:32%; border:3px solid #fff; border-radius:14px; box-shadow:0 0 0 999px rgba(0,0,0,.4); }
+  .guide::after { content:''; position:absolute; left:10px; right:10px; top:50%; border-top:2px solid var(--red); animation:sweep 1.6s ease-in-out infinite alternate; }
+  @keyframes sweep { from { transform:translateY(-18px); } to { transform:translateY(18px); } }
+  .camhint { position:absolute; left:0; right:0; bottom:10px; text-align:center; color:#fff; font-size:13px; font-weight:600; text-shadow:0 1px 3px rgba(0,0,0,.6); }
+
+  /* last scan */
+  #result { display:none; border-left:5px solid; animation:drop .2s ease-out; }
+  #result.ok, #result.warn, #result.bad { display:block; }
+  #result.ok { border-color:var(--green); } #result.warn { border-color:var(--amber); } #result.bad { border-color:var(--red); }
+  #result b.big { display:block; font-size:20px; font-weight:800; }
+  #result.ok b.big { color:var(--green); } #result.warn b.big { color:var(--amber); } #result.bad b.big { color:var(--red); }
+  #result .sub { font-weight:600; color:var(--muted); word-break:break-all; }
+  #result ul { margin:10px 0 0; padding:0; list-style:none; display:grid; gap:6px; }
+  #result .acts { display:flex; gap:8px; margin-top:14px; }
+  #result .acts .go { flex:1; }
+  #result .acts .btn { width:auto; min-height:52px; padding:0 18px; }
+  #result .upbar { color:var(--amber); }
+  .notin { margin-top:10px; font-size:13.5px; }
+  .notin summary { cursor:pointer; font-weight:700; color:var(--red); }
+  .notin p { margin-top:6px; color:var(--muted); word-break:break-all; max-height:140px; overflow:auto; }
+  #result li { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:13.5px; }
+  #result li b { font-weight:700; }
+  @keyframes drop { from { transform:translateY(-6px); opacity:0; } }
+
+  /* recent scans */
+  #recent { list-style:none; padding:0; margin-top:8px; }
+  #recent li { display:grid; grid-template-columns:28px 1fr auto; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--line); }
+  #recent li:first-child { border-top:0; }
+  .dot { width:28px; height:28px; border-radius:8px; display:grid; place-content:center; }
+  .dot svg { width:16px; height:16px; }
+  .s-ok .dot { background:var(--green-soft); color:var(--green); }
+  .s-warn .dot { background:var(--amber-soft); color:var(--amber); }
+  .s-bad .dot { background:var(--red-soft); color:var(--red); }
+  .r-awb { font-weight:700; font-size:14.5px; word-break:break-all; }
+  .r-sub { font-size:12.5px; color:var(--muted); }
+  .r-time { font-size:12.5px; color:var(--muted); }
+  .muted { color:var(--muted); font-size:14px; }
+
+  /* panels */
+  .prow { display:grid; grid-template-columns:1fr auto; align-items:center; gap:6px 12px; padding:14px 0; border-top:1px solid var(--line); }
+  .prow:first-child { border-top:0; padding-top:6px; }
+  .pname { font-weight:700; }
+  .pleft { font-weight:700; font-size:16px; color:var(--red); }
+  .pleft.done { color:var(--green); }
+  .pbar { grid-column:1 / -1; height:6px; border-radius:99px; background:var(--red-soft); overflow:hidden; }
+  .pbar i { display:block; height:100%; border-radius:99px; background:var(--green); }
+  .psub { font-size:13px; color:var(--muted); }
+  .pdl { justify-self:end; display:flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:9px; padding:6px 10px; background:var(--surface); color:var(--ink); font-size:13px; font-weight:600; }
+  .pdl svg { width:15px; height:15px; }
+  .prow[data-open] { cursor:pointer; }
+  .prow[data-open] .pname::after { content:" ›"; color:var(--muted); }
+  #pdetail { display:grid; }
+  #pdetail .card + .card { margin-top:12px; }
+  .pdhead { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+  #pdday, #pdq { font:inherit; font-size:14px; border:1px solid var(--line); border-radius:9px; padding:7px 10px; background:var(--surface); color:var(--ink); }
+  #pdq { width:100%; font-size:16px; }
+  .hrow { display:grid; grid-template-columns:96px 1fr 44px; align-items:center; gap:10px; padding:5px 0; font-size:13.5px; }
+  .hrow i { display:block; height:10px; border-radius:99px; background:var(--green); min-width:2px; }
+  .hrow b { text-align:right; }
+  .seg { display:flex; gap:6px; margin:10px 0 4px; }
+  .seg button { flex:1; border:1px solid var(--line); border-radius:9px; padding:8px; background:var(--surface); font-size:13.5px; font-weight:600; }
+  .seg button[aria-selected="true"] { background:var(--brand); border-color:var(--brand); color:#fff; }
+  #pdlist { list-style:none; padding:0; margin-top:4px; }
+  #pdlist li { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--line); }
+  #pdlist li:first-child { border-top:0; }
+  #pdlist .why { font-size:12.5px; font-weight:600; color:var(--red); }
+  .pmode { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--brand-soft); border:1px solid var(--brand); }
+  .pmode b { color:var(--brand); }
+  .pmode small { display:block; font-size:13px; color:var(--muted); }
+  .seg button { padding:8px 4px; font-size:13px; }
+
+  /* files */
+  .btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:50px; border:1px solid var(--line); border-radius:12px; padding:12px 16px; font-weight:600; background:var(--surface); color:var(--ink); text-align:center; }
+  .btn svg { width:18px; height:18px; flex:none; }
+  .btn + .btn { margin-top:10px; }
+  .btn.primary { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .btn.danger { color:var(--red); }
+  .btn:disabled { opacity:.55; cursor:progress; }
+  .file { position:relative; }
+  .file input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .file:focus-within { outline:3px solid var(--brand); outline-offset:2px; }
+  .note { margin-top:10px; font-size:13px; color:var(--muted); }
+  #upmsg { margin-top:12px; padding:10px 12px; border-radius:12px; font-size:14px; font-weight:600; }
+  .upbar { display:block; height:6px; margin-top:8px; border-radius:99px; background:rgba(0,0,0,.08); overflow:hidden; }
+  .upbar b { display:block; height:100%; border-radius:99px; background:currentColor; transition:width .3s ease-out; }
+  .upbar.spin b { animation:slide 1.1s ease-in-out infinite; }
+  @keyframes slide { from { transform:translateX(-100%); } to { transform:translateX(290%); } }
+  .file.busy { opacity:.5; pointer-events:none; }
+  #upmsg.ok { background:var(--green-soft); color:var(--green); } #upmsg.warn { background:var(--amber-soft); color:var(--amber); } #upmsg.bad { background:var(--red-soft); color:var(--red); }
+
+  /* bottom dock: scan bar + tabs, always within thumb reach */
+  .dock { position:fixed; left:0; right:0; bottom:0; z-index:6; background:rgba(255,255,255,.96); backdrop-filter:blur(12px); border-top:1px solid var(--line); padding:10px 12px max(6px, env(safe-area-inset-bottom)); }
+  .dock > * { max-width:560px; margin:0 auto; }
+  .scanbar { display:flex; gap:8px; }
+  .field { flex:1; min-width:0; position:relative; }
+  .field svg { position:absolute; left:12px; top:50%; width:20px; height:20px; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+  #awb { width:100%; height:52px; padding:0 12px 0 40px; border:1px solid var(--line); border-radius:12px; background:var(--bg); font:600 17px "Plus Jakarta Sans", system-ui, sans-serif; letter-spacing:.03em; text-transform:uppercase; color:var(--ink); }
+  #awb::placeholder { text-transform:none; letter-spacing:0; font-weight:500; font-size:15px; color:var(--muted); }
+  #awb:focus { outline:none; border-color:var(--brand); background:#fff; box-shadow:0 0 0 3px var(--brand-soft); }
+  .iconbtn { flex:none; width:52px; height:52px; border:0; border-radius:12px; display:grid; place-content:center; background:var(--brand-soft); color:var(--brand); }
+  .iconbtn.on { background:var(--red); color:#fff; }
+  .iconbtn svg { width:24px; height:24px; }
+  .go { flex:none; height:52px; padding:0 18px; border:0; border-radius:12px; background:var(--brand); color:#fff; font-weight:700; }
+  .tabs { display:grid; grid-template-columns:repeat(3, 1fr); margin-top:8px; }
+  .tabs button { border:0; background:none; padding:6px 0 4px; display:grid; justify-items:center; gap:3px; font-size:11.5px; font-weight:600; color:var(--muted); position:relative; }
+  .tabs svg { box-sizing:content-box; padding:3px 16px; border-radius:999px; }
+  .tabs button[aria-selected=true] svg { background:var(--brand-soft); }
+  .tabs svg { width:22px; height:22px; }
+  .tabs button[aria-selected=true] { color:var(--brand); }
+
+  /* full-screen signals */
+  #redlight, #flash { position:fixed; inset:0; opacity:0; pointer-events:none; z-index:9; }
+  #redlight { background:var(--red); }
+  #redlight.on { animation:blink .3s step-end 6; }
+  @keyframes blink { 0% { opacity:.85; } 50% { opacity:0; } }
+  #flash { background:var(--green); }
+  #flash.on { animation:flash .5s ease-out 1; }
+  @keyframes flash { 0% { opacity:.45; } 100% { opacity:0; } }
+
+  @media (max-width:380px) { .hero { grid-template-columns:1fr; justify-items:center; } .stats { width:100%; grid-template-columns:1fr 1fr; } }
+  @media (prefers-reduced-motion: reduce) {
+    .ring .arc { transition:none; } #result { animation:none; } .guide::after { animation:none; } #flash.on { animation:none; }
+    #redlight.on { animation:hold 1.8s step-end 1; }
+    @keyframes hold { 0% { opacity:.85; } 100% { opacity:0; } }
+  }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <span class="logo"><img src="logo.png" alt="" width="175" height="184"></span>
+  <span class="tape">Shivam</span>
+  <div class="who"><p class="appname">AWB Pack Scan</p><p id="sheetinfo">Loading…</p></div>
+  <span class="live" id="live">Live</span>
+</header>
+
+<main>
+  <div class="greet"><p id="hello"></p><p id="today"></p></div>
+  <section class="view" data-view="scan">
+    <div class="card" id="empty" hidden>
+      <h2>No order sheet yet</h2>
+      <p class="muted" style="margin:6px 0 14px">Upload today's order sheet (CSV or Excel) to start scanning.</p>
+      <button class="btn primary" data-goto="files">Upload order sheet</button>
+    </div>
+    <div class="view" id="app" hidden>
+      <div class="card hero" aria-label="Packing progress">
+        <div class="ring">
+          <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52"/><circle class="arc" id="arc" cx="60" cy="60" r="52" pathLength="100" stroke-dasharray="0 100"/></svg>
+          <div class="mid"><span id="ndone">0</span><span id="ntotal"></span></div>
+        </div>
+        <div class="stats">
+          <div class="stat g"><span>Packed</span><b id="ldone">0%</b></div>
+          <div class="stat r"><span id="ltodopct">Left to pack</span><b id="ltodo">0</b></div>
+        </div>
+      </div>
+      <div class="card pmode" id="pmode" hidden><span>Scanning for <b id="pmname"></b><small id="pmsub"></small></span><button class="pdl" id="pmstop">Stop</button></div>
+      <div id="reader" hidden></div>
+      <div class="card" id="result" role="status" aria-live="polite"></div>
+      <section class="card">
+        <h2>Recent scans <small>on this phone</small></h2>
+        <ol id="recent"></ol>
+        <p class="muted" id="norecent" style="margin-top:6px">Scan a parcel and it shows up here.</p>
+      </section>
+    </div>
+  </section>
+
+  <section class="view" data-view="panels" hidden>
+    <div class="card" id="plist">
+      <h2>Left by panel <small>most left first, tap a panel for details</small></h2>
+      <div id="panels" style="margin-top:6px"></div>
+      <button class="btn" id="psum" style="margin-top:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download panel summary (Excel)</button>
+    </div>
+    <div id="pdetail" hidden>
+      <button class="pdl" id="pback" style="justify-self:start;margin-bottom:10px">‹ All panels</button>
+      <div class="card">
+        <h2 id="pdname"></h2>
+        <p class="psub" id="pdsub"></p>
+        <button class="btn primary" id="pdscan" style="margin-top:12px"></button>
+        <p class="note" id="pdscannote">Only this panel's parcels get packed. Others show red and go to Unmatched.</p>
+      </div>
+      <div class="card">
+        <div class="pdhead"><h2>Packed by hour</h2><select id="pdday" aria-label="Day"></select></div>
+        <div id="pdhours"></div>
+      </div>
+      <div class="card">
+        <input type="search" id="pdq" placeholder="Search AWB or SKU" aria-label="Search AWB or SKU" autocomplete="off" spellcheck="false">
+        <div class="seg" role="tablist"><button data-pd="todo" aria-selected="true"></button><button data-pd="done" aria-selected="false"></button><button data-pd="unm" aria-selected="false"></button></div>
+        <ol id="pdlist"></ol>
+        <p class="muted" id="pdmore" hidden></p>
+        <button class="btn" id="pdunmdl" style="margin-top:10px" hidden>Download unmatched for this panel (Excel)</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" data-view="files" hidden>
+    <div class="card">
+      <h2>Download Excel</h2>
+      <p class="note" style="margin:4px 0 14px">Adds a Packed column: Yes in green, No in red.</p>
+      <button class="btn" id="dlall"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download all orders</button>
+      <button class="btn danger" id="dltodo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download unpacked only</button>
+      <button class="btn" id="dlun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span id="dluntext">Download unmatched AWBs</span></button>
+    </div>
+    <div class="card">
+      <h2>Order sheet</h2>
+      <p class="note" style="margin:4px 0 14px" id="fileinfo">No sheet uploaded.</p>
+      <label class="btn primary file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add to current sheet<input type="file" id="fileadd" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+      <label class="btn file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9M7 14l5-5 5 5M5 4h14"/></svg>Replace sheet<input type="file" id="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+      <button class="btn" id="tpl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download template (Excel)</button>
+      <p class="note"><b>Add</b> keeps every packed mark and skips AWBs already in the sheet. <b>Replace</b> starts over on every phone and clears the unmatched list.</p>
+      <p class="note">CSV or Excel (.xlsx, .xls). Needs an AWB column; SKU, Order ID and Marketplace are optional.</p>
+      <p id="upmsg" hidden></p>
+    </div>
+  </section>
+</main>
+
+<footer class="dock">
+  <form class="scanbar" id="scanform">
+    <div class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6v12M7 6v12M10 6v12M14 6v12M17 6v12M20 6v12"/></svg><input type="text" id="awb" placeholder="Scan or paste AWBs" aria-label="AWB number" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go"></div>
+    <button type="button" class="iconbtn" id="cam" aria-label="Start camera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M8 9v6M11 9v6M14 9v6M17 9v6"/></svg></button>
+    <button type="submit" class="go">Check</button>
+  </form>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="scan" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>Scan</button>
+    <button role="tab" data-tab="panels" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Panels</button>
+    <button role="tab" data-tab="files" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M12 18v-6M9 15l3 3 3-3"/></svg>Files</button>
+  </nav>
+</footer>
+<div id="redlight"></div><div id="flash"></div>
+
+<script>
+const N = s => String(s || '').replace(/[`'\s]/g, '').toUpperCase();
+const clean = v => String(v ?? '').replace(/^`/, '');
+const $ = id => document.getElementById(id);
+const nonce = () => Math.random().toString(36).slice(2, 12).padEnd(8, '0'); // one-time id for a request
+const PART = 3_000_000; // base64 chars per upload request (under Vercel's 4.5 MB); a multiple of 4 so parts join back cleanly
+// rows = arrays from the CSV, ai = index of the AWB column; log mirrors the server's log list
+let ver = null, cols = [], rows = [], ai = -1, byAwb = new Map(), packed = new Set(), log = [], busy = false;
+
+// tries > 1 retries network and server errors (not 4xx) with a growing pause, for shaky phone connections.
+async function api(a, body, tries = 1) {
+  for (let t = 1; ; t++) {
+    try {
+      const r = await fetch('/api?a=' + a, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+      const j = await r.json().catch(() => ({ error: 'HTTP ' + r.status }));
+      if (!r.ok) throw Object.assign(new Error(j.error || 'HTTP ' + r.status), { status: r.status });
+      return j;
+    } catch (e) {
+      if (t >= tries || (e.status >= 400 && e.status < 500)) throw e;
+      await new Promise(r => setTimeout(r, 1500 * t));
+    }
+  }
+}
+
+// Sheets are sent and stored gzipped as base64: a 7.9 MB CSV becomes ~1.5 MB.
+async function gzip(text) {
+  const b = new Uint8Array(await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  let bin = ''; for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+const gunzip = b64 => new Response(new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+
+// Column names people use for the same thing -> the name the app uses.
+const ALIASES = {
+  'AWB Number': ['awbnumber', 'awb', 'awbno', 'awbnum', 'trackingid', 'trackingnumber', 'trackingno', 'waybill', 'waybillnumber'],
+  'SKU': ['sku', 'sellersku', 'skuid', 'skucode'],
+  'Order Number': ['ordernumber', 'orderid', 'orderno'],
+  'Marketplace': ['marketplace', 'panel', 'channel', 'platform'],
+};
+const canon = h => { const k = String(h ?? '').toLowerCase().replace(/[^a-z0-9]/g, ''); for (const [name, al] of Object.entries(ALIASES)) if (al.includes(k)) return name; return String(h ?? '').trim(); };
+const NO_AWB = 'No AWB column found: name one column "AWB Number" (AWB or Tracking ID also work)';
+
+function setSheet(head, data) {
+  head = head.map(canon); const i = head.indexOf('AWB Number');
+  if (i < 0) throw new Error(NO_AWB);
+  cols = head; rows = data; ai = i; byAwb = new Map();
+  for (const r of rows) { const k = N(r[ai]); if (!k) continue; if (!byAwb.has(k)) byAwb.set(k, []); byAwb.get(k).push(r); }
+}
+function loadCsv(text) { const data = Papa.parse(text, { skipEmptyLines: true }).data; setSheet(data.shift() || [], data); }
+
+// A picked file as rows of text cells (first row = headers): CSV, or the first sheet of an Excel file.
+// Parsing runs in a Web Worker so the page never freezes; SheetJS reads a 20k-row .xlsx in seconds
+// where ExcelJS on the main thread froze the page for minutes.
+const READER = `
+self.onmessage = e => {
+  const { buf, excel } = e.data;
+  try {
+    let rows;
+    if (excel) {
+      importScripts('https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js');
+      const wb = XLSX.read(buf, { type: 'array', dense: true, sheets: 0, cellStyles: false, cellHTML: false });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      if (!ws) throw new Error('the Excel file has no sheets');
+      // rawNumbers: numbers come back exact (1234567890123, not 1.23457E+12); dates as shown in Excel
+      rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, rawNumbers: true, defval: '', blankrows: false })
+        .map(r => r.map(v => String(v ?? '').trim()));
+    } else {
+      importScripts('https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js');
+      rows = Papa.parse(new TextDecoder().decode(buf), { skipEmptyLines: true }).data;
+    }
+    postMessage({ rows });
+  } catch (err) { postMessage({ error: String((err && err.message) || err) }); }
+};`;
+async function readFile(f) {
+  const excel = /\.xlsx?$/i.test(f.name), buf = await f.arrayBuffer();
+  const w = new Worker(URL.createObjectURL(new Blob([READER], { type: 'text/javascript' })));
+  try {
+    return await new Promise((ok, no) => {
+      w.onmessage = e => e.data.error ? no(new Error(e.data.error)) : ok(e.data.rows);
+      w.onerror = e => no(new Error(e.message || 'could not read the file'));
+      w.postMessage({ buf, excel }, [buf]);
+    });
+  } finally { w.terminate(); }
+}
+const col = (r, name) => clean(r[cols.indexOf(name)]);
+
+function render() {
+  const has = rows.length > 0, n = x => x.toLocaleString('en-IN');
+  $('app').hidden = !has; $('empty').hidden = has;
+  $('dlall').disabled = $('dltodo').disabled = !has;
+  if (!has) {
+    $('sheetinfo').textContent = 'No order sheet yet'; $('fileinfo').textContent = 'No sheet uploaded.';
+    $('panels').innerHTML = '<p class="muted">Upload an order sheet to see panels.</p>'; if (openPanel) openDetail(null); return;
+  }
+  let done = 0; for (const a of packed) done += byAwb.get(a)?.length || 0;
+  const total = rows.length, todo = total - done;
+  const pct = Math.round(done / total * 1000) / 10, left = Math.round((100 - pct) * 10) / 10;
+  $('arc').setAttribute('stroke-dasharray', `${done / total * 100} 100`); $('arc').style.opacity = done ? 1 : 0;
+  $('ndone').textContent = n(done); $('ntotal').textContent = `of ${n(total)}`;
+  $('ldone').textContent = pct + '%'; $('ltodo').textContent = n(todo); $('ltodopct').textContent = `Left to pack (${left}%)`;
+  renderPanels(n);
+  const when = new Date(+ver).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  $('sheetinfo').textContent = `${n(total)} orders, uploaded ${when}`;
+  $('fileinfo').textContent = `Current sheet: ${n(total)} rows, ${n(byAwb.size)} AWBs, uploaded ${when}.`;
+}
+
+// Recent scans on this phone, kept per sheet in the browser.
+let recent = [];
+const recentKey = () => 'recent:' + (log[0] || 'v:' + ver);
+function loadRecent() { try { recent = JSON.parse(localStorage.getItem(recentKey())) || []; } catch { recent = []; } renderRecent(); }
+function addRecent(s, a, d) {
+  recent.unshift({ s, a, d, t: Date.now() }); recent = recent.slice(0, 30);
+  try { localStorage.setItem(recentKey(), JSON.stringify(recent)); } catch {}
+  renderRecent();
+}
+function renderRecent() {
+  $('norecent').hidden = recent.length > 0;
+  $('recent').innerHTML = recent.map(x => `<li class="s-${x.s}"><span class="dot">${ICONS[x.s]}</span>`
+    + `<div><div class="r-awb">${esc(x.a)}</div><div class="r-sub">${esc(x.d)}</div></div>`
+    + `<span class="r-time">${new Date(x.t).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span></li>`).join('');
+}
+
+function setTab(t) {
+  if (t === 'files') refreshUnmatched();
+  if (t === 'panels' && rows.length) loadTimes().then(render).catch(() => {});
+  for (const v of document.querySelectorAll('[data-view]')) v.hidden = v.dataset.view !== t;
+  for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', b.dataset.tab === t);
+}
+document.querySelector('.tabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); };
+document.addEventListener('click', e => { const g = e.target.closest('[data-goto]'); if (g) setTab(g.dataset.goto); });
+
+function upmsg(kind, text, pct) {
+  const e = $('upmsg'); e.hidden = false; e.className = kind;
+  e.innerHTML = `<span>${esc(text)}</span>` + (pct == null ? '' : `<i class="upbar${pct < 0 ? ' spin' : ''}"><b style="width:${pct < 0 ? 35 : pct}%"></b></i>`);
+}
+const paint = () => new Promise(r => setTimeout(r, 0)); // let the progress bar draw before heavy steps
+function lockUpload(on) { for (const id of ['file', 'fileadd']) { $(id).disabled = on; $(id).parentElement.classList.toggle('busy', on); } }
+
+// Pack time per AWB (ms), from the server's packed hash. Fetched when the sheet loads and when the Panels tab
+// opens; AWBs packed in between get the time this phone first saw them, which the next fetch corrects.
+let times = new Map(), timesAt = 0;
+async function loadTimes(force) {
+  if (!force && Date.now() - timesAt < 30000) return;
+  const { items } = await api('times', null, 2), m = new Map();
+  for (let i = 0; i < items.length; i += 2) m.set(items[i], items[i + 1] * 1000);
+  times = m; timesAt = Date.now();
+}
+const seen = a => { if (!times.has(a)) times.set(a, Date.now()); };
+// Days and hours are counted in India time, whatever the phone's clock zone is.
+const IST = 330 * 60000;
+const dayOf = t => new Date(t + IST).toISOString().slice(0, 10);
+const hourOf = t => new Date(t + IST).getUTCHours();
+const hourLabel = h => `${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`;
+const hm = t => new Date(t).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' });
+const dayLabel = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+const panelOf = r => clean(r[cols.indexOf('Marketplace')]) || 'No marketplace';
+
+// Per marketplace ("panel"), counted in rows like the totals: total, packed, packed today, first/last pack time.
+function panelStats() {
+  const by = new Map(), today0 = Date.parse(dayOf(Date.now()) + 'T00:00:00+05:30');
+  for (const [awb, rs] of byAwb) {
+    const yes = packed.has(awb), t = times.get(awb) || 0;
+    for (const r of rs) {
+      const k = panelOf(r);
+      let p = by.get(k); if (!p) by.set(k, p = { total: 0, done: 0, today: 0, first: 0, last: 0 });
+      p.total++;
+      if (yes) { p.done++; if (t) { if (t >= today0) p.today++; if (!p.first || t < p.first) p.first = t; if (t > p.last) p.last = t; } }
+    }
+  }
+  return [...by].sort((a, b) => (b[1].total - b[1].done) - (a[1].total - a[1].done) || b[1].total - a[1].total);
+}
+
+function renderPanels(n) {
+  const st = panelStats(); renderBanner(st);
+  $('panels').innerHTML = st.map(([k, p]) => {
+    const left = p.total - p.done;
+    return `<div class="prow" data-open="${esc(k)}"><span class="pname">${esc(k)}</span><span class="pleft${left ? '' : ' done'}">${left ? n(left) + ' left' : 'All packed'}</span>`
+      + `<div class="pbar"><i style="width:${p.done / p.total * 100}%"></i></div><span class="psub">${n(p.done)} of ${n(p.total)} packed`
+      + `${p.today ? `, ${n(p.today)} today` : ''}${p.last ? `, last ${hm(p.last)}` : ''}</span>`
+      + `<button class="pdl" data-panel="${esc(k)}">${DL_ICON}Export ${n(p.total)}</button></div>`;
+  }).join('');
+  renderDetail();
+}
+
+// One panel: packed per hour for a chosen day, and its AWBs split into not packed / packed (latest first).
+let openPanel = null, pdTab = 'todo', pdOpts = '';
+
+// Panel-wise scan: while set, only parcels with a row in that panel get packed; anything else shows red,
+// is not packed, and goes to that panel's Unmatched list (punm = [panel, AWB, first time], shared on the server).
+let scanPanel = null, punm = [];
+try { scanPanel = localStorage.getItem('scanPanel'); } catch {}
+const inScope = a => byAwb.has(a) && (!scanPanel || byAwb.get(a).some(r => panelOf(r) === scanPanel));
+const unmWhy = a => byAwb.has(a) ? 'Belongs to ' + [...new Set(byAwb.get(a).map(panelOf))].join(', ') : 'Not in order sheet';
+function setScanPanel(k) {
+  scanPanel = k; try { k ? localStorage.setItem('scanPanel', k) : localStorage.removeItem('scanPanel'); } catch {}
+  render();
+}
+async function loadPunm() { try { punm = (await api('unmatched&p=1')).items; renderDetail(); } catch {} }
+// Still unmatched for panel k = no row of that AWB is in k now (rows added later can match).
+const panelUnmatched = k => punm.filter(([p, a]) => p === k && !(byAwb.get(a) || []).some(r => panelOf(r) === k)).sort((x, y) => x[2] < y[2] ? 1 : -1);
+function renderBanner(st) {
+  const p = scanPanel && st.find(([k]) => k === scanPanel);
+  if (scanPanel && !p) { scanPanel = null; try { localStorage.removeItem('scanPanel'); } catch {} } // panel gone after a replace
+  $('pmode').hidden = !p; if (!p) return;
+  $('pmname').textContent = p[0];
+  $('pmsub').textContent = `${fmtN(p[1].done)} of ${fmtN(p[1].total)} packed, ${fmtN(p[1].total - p[1].done)} left`;
+}
+$('pmstop').onclick = () => setScanPanel(null);
+$('pdscan').onclick = () => {
+  if (scanPanel === openPanel) return setScanPanel(null);
+  setScanPanel(openPanel); setTab('scan'); scrollTo(0, 0); if (!cam) $('awb').focus();
+};
+$('pdunmdl').onclick = async e => {
+  const btn = e.currentTarget, k = openPanel, items = panelUnmatched(k); btn.disabled = true;
+  try {
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Unmatched', { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = [{ header: 'AWB Number', width: 26 }, { header: 'Reason', width: 34 }, { header: 'First scanned (IST)', width: 24 }];
+    ws.getRow(1).font = { bold: true };
+    for (const [, a, at] of items) ws.addRow([a, unmWhy(a), new Date(at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })]);
+    const url = URL.createObjectURL(new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a'); a.href = url; a.download = `unmatched-${k.replace(/[^\w-]+/g, '-')}-${dayOf(Date.now())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (err) { btn.textContent = 'Download failed: ' + err.message; }
+  btn.disabled = false;
+};
+const PD_MAX = 200; // rows drawn at once; search narrows the rest
+function openDetail(k) {
+  openPanel = k; pdTab = 'todo'; pdOpts = ''; $('pdq').value = ''; $('pdday').value = '';
+  $('plist').hidden = !!k; $('pdetail').hidden = !k;
+  if (k) { renderDetail(); scrollTo(0, 0); loadPunm(); }
+}
+function renderDetail() {
+  if (!openPanel) return;
+  const k = openPanel, q = N($('pdq').value), hours = new Array(24).fill(0), days = new Map(), todo = [], done = [];
+  const today = dayOf(Date.now()), day = $('pdday').value || today;
+  let total = 0, packedRows = 0;
+  for (const [awb, rs] of byAwb) {
+    const mine = rs.filter(r => panelOf(r) === k);
+    if (!mine.length) continue;
+    total += mine.length;
+    const yes = packed.has(awb), t = times.get(awb) || 0;
+    if (yes) {
+      packedRows += mine.length;
+      if (t) { const d = dayOf(t); days.set(d, (days.get(d) || 0) + mine.length); if (d === day) hours[hourOf(t)] += mine.length; }
+    }
+    if (q && !awb.includes(q) && !mine.some(r => N(col(r, 'SKU')).includes(q))) continue;
+    (yes ? done : todo).push([awb, mine, t]);
+  }
+  if (!total) { openDetail(null); return; } // panel gone after a sheet replace
+  const n = fmtN;
+  $('pdname').textContent = k;
+  $('pdsub').textContent = `${n(packedRows)} of ${n(total)} packed, ${n(total - packedRows)} left` + (days.get(today) ? `, ${n(days.get(today))} today` : '');
+  days.set(today, days.get(today) || 0);
+  const opts = [...days.keys()].sort().reverse().map(d => `<option value="${d}"${d === day ? ' selected' : ''}>${d === today ? 'Today' : dayLabel(d)} (${n(days.get(d))})</option>`).join('');
+  if (pdOpts !== opts) $('pdday').innerHTML = pdOpts = opts; // rebuilt only on change, so an open picker stays open
+  const first = hours.findIndex(Boolean), last = 23 - [...hours].reverse().findIndex(Boolean), max = Math.max(...hours);
+  $('pdhours').innerHTML = first < 0 ? '<p class="muted">Nothing packed on this day.</p>'
+    : hours.slice(first, last + 1).map((c, i) => `<div class="hrow"><span>${hourLabel(first + i)}–${hourLabel((first + i + 1) % 24)}</span><i style="width:${c / max * 100}%;opacity:${c ? 1 : 0}"></i><b>${n(c)}</b></div>`).join('');
+  const unm = panelUnmatched(k).filter(([, a]) => !q || a.includes(q));
+  const tabs = { todo: `Not packed (${n(todo.length)})`, done: `Packed (${n(done.length)})`, unm: `Unmatched (${n(unm.length)})` };
+  for (const b of document.querySelectorAll('[data-pd]')) { b.textContent = tabs[b.dataset.pd]; b.setAttribute('aria-selected', pdTab === b.dataset.pd); }
+  const on = scanPanel === k;
+  $('pdscan').className = on ? 'btn danger' : 'btn primary'; $('pdscan').textContent = on ? 'Stop panel scan' : 'Scan for this panel';
+  const stamp = t => (dayOf(t) === today ? '' : dayLabel(dayOf(t)) + ', ') + hm(t);
+  const list = pdTab === 'todo' ? todo : pdTab === 'done' ? done.sort((a, b) => b[2] - a[2]) : unm;
+  const row = pdTab === 'unm'
+    ? ([, a, at]) => `<li><div><div class="r-awb">${esc(a)}</div><div class="why">${esc(unmWhy(a))}</div></div><span class="r-time">${stamp(Date.parse(at))}</span></li>`
+    : ([awb, mine, t]) => `<li><div><div class="r-awb">${esc(awb)}</div>`
+      + `<div class="r-sub">${mine.map(r => esc(col(r, 'SKU') || 'Item')).join(', ')}</div></div>`
+      + `<span class="r-time">${pdTab === 'done' ? (t ? stamp(t) : 'Packed') : ''}</span></li>`;
+  $('pdlist').innerHTML = list.slice(0, PD_MAX).map(row).join('')
+    || `<li><span class="muted">${q ? 'No AWB or SKU matches.' : { todo: 'All packed.', done: 'Nothing packed yet.', unm: 'No unmatched scans for this panel.' }[pdTab]}</span></li>`;
+  $('pdunmdl').hidden = pdTab !== 'unm' || !unm.length;
+  $('pdmore').hidden = list.length <= PD_MAX;
+  $('pdmore').textContent = `Showing ${PD_MAX} of ${n(list.length)}. Search to find the rest, or use Export.`;
+}
+$('pback').onclick = () => openDetail(null);
+$('pdq').oninput = $('pdday').onchange = () => renderDetail();
+document.querySelector('.seg').onclick = e => { const b = e.target.closest('[data-pd]'); if (b) { pdTab = b.dataset.pd; renderDetail(); } };
+
+// Excel: sheet "Panels" = one row per panel; sheet "By hour" = packed rows per day, hour and panel.
+async function downloadSummary(btn) {
+  btn.disabled = true;
+  try {
+    await loadTimes(true);
+    const when = t => t ? new Date(t).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Panels', { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = [{ header: 'Panel', width: 28 }, { header: 'Total', width: 10 }, { header: 'Packed', width: 10 }, { header: 'Left', width: 10 },
+      { header: '% packed', width: 11 }, { header: 'Packed today', width: 14 }, { header: 'First scan (IST)', width: 20 }, { header: 'Last scan (IST)', width: 20 }];
+    ws.getRow(1).font = { bold: true };
+    const sum = { total: 0, done: 0, today: 0 };
+    for (const [k, p] of panelStats()) {
+      ws.addRow([k, p.total, p.done, p.total - p.done, Math.round(p.done / p.total * 1000) / 10, p.today, when(p.first), when(p.last)]);
+      sum.total += p.total; sum.done += p.done; sum.today += p.today;
+    }
+    ws.addRow(['All panels', sum.total, sum.done, sum.total - sum.done, sum.total ? Math.round(sum.done / sum.total * 1000) / 10 : 0, sum.today]).font = { bold: true };
+    const hs = wb.addWorksheet('By hour', { views: [{ state: 'frozen', ySplit: 1 }] }), m = new Map();
+    hs.columns = [{ header: 'Date', width: 14 }, { header: 'Hour (IST)', width: 16 }, { header: 'Panel', width: 28 }, { header: 'Packed', width: 10 }];
+    hs.getRow(1).font = { bold: true };
+    for (const [awb, rs] of byAwb) {
+      const t = packed.has(awb) && times.get(awb); if (!t) continue;
+      for (const r of rs) { const key = dayOf(t) + '|' + String(hourOf(t)).padStart(2, '0') + '|' + panelOf(r); m.set(key, (m.get(key) || 0) + 1); }
+    }
+    for (const [key, c] of [...m].sort((a, b) => a[0] < b[0] ? -1 : 1)) {
+      const [d, h, k] = key.split('|');
+      hs.addRow([d, `${hourLabel(+h)}–${hourLabel((+h + 1) % 24)}`, k, c]);
+    }
+    const url = URL.createObjectURL(new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a'); a.href = url; a.download = `panel-summary-${dayOf(Date.now())}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) { btn.lastChild.textContent = 'Summary failed: ' + e.message + '. Tap to retry'; btn.disabled = false; return; }
+  btn.lastChild.textContent = 'Download panel summary (Excel)'; btn.disabled = false;
+}
+$('psum').onclick = e => downloadSummary(e.currentTarget);
+
+async function loadSheet(v) {
+  const s = await api('sheet');
+  if (s.ver !== v) throw new Error('sheet is being replaced, retrying');
+  let b64 = '';
+  for (let i = 0; i < s.n; i++) {
+    $('sheetinfo').textContent = `Loading sheet part ${i + 1} of ${s.n}…`;
+    b64 += (await api(`part&v=${v}&i=${i}`, null, 3)).gz;
+  }
+  loadCsv(await gunzip(b64)); ver = v;
+}
+
+// Fetch only new log entries. If the entry we last saw is not where we left it, the sheet was replaced: start over.
+async function sync() {
+  if (busy || (document.hidden && log.length)) return; // pause polling in background tabs, but always do the first load
+  busy = true;
+  try {
+    for (;;) {
+      const { items } = await api('poll&from=' + log.length);
+      if (log.length && items[0] !== log.at(-1)) { log = []; continue; }
+      const fresh = log.length ? items.slice(1) : items, first = !log.length;
+      if (first) {
+        packed = new Set(); times = new Map(); timesAt = 0;
+        if (!fresh.length) { ver = null; cols = []; rows = []; byAwb = new Map(); break; }
+      }
+      // log = 'v:<sheet>' then packed AWBs; a later 'v:' entry means rows were added to the sheet
+      const latest = fresh.filter(a => a.startsWith('v:')).at(-1)?.slice(2);
+      if (latest && latest !== ver) await loadSheet(latest);
+      log.push(...fresh);
+      for (const a of fresh) if (!a.startsWith('v:')) { packed.add(a); if (!first) seen(a); }
+      if (first) { loadRecent(); loadTimes(true).then(render).catch(() => {}); }
+      break;
+    }
+    render();
+    $('live').className = 'live'; $('live').textContent = 'Live';
+  } catch (e) { $('live').className = 'live off'; $('live').textContent = 'Offline'; $('sheetinfo').textContent = 'Connection problem: ' + e.message; }
+  busy = false;
+}
+
+let ctx;
+function feedback(good) {
+  try { navigator.vibrate?.(good ? 80 : [200, 80, 200]); } catch {}
+  try {
+    ctx ??= new AudioContext();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = good ? 1200 : 300; g.gain.value = 0.15; o.connect(g).connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + (good ? 0.12 : 0.4));
+  } catch {}
+}
+
+function show(kind, title, awb, extra) {
+  const el = $('result'); el.className = 'card ' + kind; el.dataset.awb = awb || '';
+  const det = r => [col(r, 'Size') && 'Size ' + col(r, 'Size'), col(r, 'Quantity') && 'qty ' + col(r, 'Quantity'), col(r, 'Marketplace'), col(r, 'Order Number') && 'order ' + col(r, 'Order Number')].filter(Boolean).map(esc).join(', ');
+  const items = (byAwb.get(awb) || []).map(r => `<li><b>${esc(col(r, 'SKU') || 'Item')}</b><br>${det(r)}</li>`).join('');
+  el.innerHTML = `<b class="big">${esc(title)}</b><div class="sub">${[awb, extra].filter(Boolean).map(esc).join(', ')}</div>${items ? '<ul>' + items + '</ul>' : ''}`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// AWB not in the sheet: the whole screen blinks red, nothing else.
+function redLight() {
+  const el = $('redlight'); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+  $('result').className = 'card';
+}
+
+function greenFlash() { const el = $('flash'); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); }
+
+// Counters and panels redraw just after the result card has painted (they walk every row).
+let renderQueued = 0;
+const renderSoon = () => { renderQueued ||= setTimeout(() => { renderQueued = 0; render(); }, 30); };
+
+function updateRecent(a, s, d) {
+  const x = recent.find(x => x.a === a); if (!x) return;
+  x.s = s; x.d = d; try { localStorage.setItem(recentKey(), JSON.stringify(recent)); } catch {}
+  renderRecent();
+}
+
+// The answer shows at once from what this phone already knows; the server confirms in the background
+// and the card corrects itself if another phone packed it first or the save failed.
+async function scan(raw) {
+  const awb = N(raw);
+  if (!awb) return;
+  setTab('scan');
+  if (!inScope(awb)) {
+    redLight(); saveUnmatched([awb]);
+    if (!byAwb.has(awb)) { addRecent('bad', awb, 'Not in order sheet'); return; }
+    const why = unmWhy(awb); // panel-wise scan, parcel of another panel: not packed
+    show('bad', 'Wrong panel', awb, why + ', not packed'); feedback(false); addRecent('bad', awb, 'Wrong panel: ' + why); return;
+  }
+  const its = byAwb.get(awb), cnt = its.length === 1 ? '1 item' : its.length + ' items', wasPacked = packed.has(awb);
+  const time = t => new Date(t).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  const onCard = () => $('result').dataset.awb === awb;
+  if (wasPacked) { show('warn', 'Already packed', awb); feedback(false); addRecent('warn', awb, 'Already packed'); }
+  else { packed.add(awb); seen(awb); show('ok', 'Packed', awb, cnt + ' marked Yes'); greenFlash(); feedback(true); addRecent('ok', awb, [cnt, col(its[0], 'Marketplace')].filter(Boolean).join(', ')); renderSoon(); }
+  try {
+    const r = await api('scan', { awb, nonce: nonce() }, 3); // retries reuse the nonce, so a lost reply isn't "already"
+    if (r.status === 'already') {
+      if (onCard()) show('warn', 'Already packed', awb, 'packed at ' + time(r.at));
+      if (!wasPacked) feedback(false);
+      updateRecent(awb, 'warn', 'Already packed at ' + time(r.at));
+    }
+  } catch (e) {
+    if (!wasPacked) { packed.delete(awb); times.delete(awb); renderSoon(); }
+    if (onCard()) show('bad', 'Scan not saved', awb, e.message + '. Scan it again.');
+    feedback(false); updateRecent(awb, 'bad', 'Not saved, scan again');
+  }
+}
+
+$('scanform').onsubmit = e => {
+  e.preventDefault();
+  const v = $('awb').value; $('awb').value = '';
+  const list = awbList(v);
+  if (list.length > 1) bulkPreview(list); else scan(v);
+  if (!cam) $('awb').focus();
+};
+
+// Bulk paste: a list of AWBs (new lines, commas or spaces) pasted into the scan box.
+// A text box drops line breaks from pasted text, so the paste is caught before that happens.
+const fmtN = x => x.toLocaleString('en-IN');
+const awbList = s => [...new Set(String(s || '').split(/[\s,;|]+/).map(N).filter(Boolean))];
+$('awb').addEventListener('paste', e => {
+  const list = awbList(e.clipboardData?.getData('text'));
+  if (list.length > 1) { e.preventDefault(); $('awb').value = ''; bulkPreview(list); }
+});
+
+const BULK_CHUNK = 2000;
+let bulk = null;
+const notWhat = () => scanPanel ? 'not in ' + scanPanel : 'not in sheet';
+const notInList = l => `<details class="notin"><summary>${fmtN(l.length)} ${esc(notWhat())}</summary><p>${l.slice(0, 300).map(esc).join(', ')}${l.length > 300 ? ', …' : ''}</p></details>`;
+
+// Nothing is packed until "Pack" is tapped: packing can't be undone, so an accidental paste does no harm.
+function bulkPreview(list) {
+  setTab('scan');
+  const inSheet = list.filter(inScope), notIn = list.filter(a => !inScope(a)), todo = inSheet.filter(a => !packed.has(a)).length;
+  const el = $('result'); el.dataset.awb = '';
+  if (!inSheet.length) {
+    bulk = null; el.className = 'card bad';
+    el.innerHTML = `<b class="big">None of these are ${scanPanel ? 'in ' + esc(scanPanel) : 'in the sheet'}</b><div class="sub">${fmtN(list.length)} AWBs pasted, saved to the unmatched list</div>${notInList(notIn)}`;
+    redLight(); feedback(false); saveUnmatched(notIn); return;
+  }
+  bulk = { inSheet, notIn };
+  el.className = 'card warn';
+  el.innerHTML = `<b class="big">Pack ${fmtN(inSheet.length)} AWBs?</b>`
+    + `<div class="sub">${fmtN(list.length)} pasted: ${fmtN(todo)} to pack${inSheet.length - todo ? `, ${fmtN(inSheet.length - todo)} already packed` : ''}${notIn.length ? `, ${fmtN(notIn.length)} ${esc(notWhat())}` : ''}</div>`
+    + (notIn.length ? notInList(notIn) : '')
+    + `<div class="acts"><button class="go" data-act="bulk-go">Pack ${fmtN(inSheet.length)}</button><button class="btn" data-act="bulk-cancel">Cancel</button></div>`;
+}
+
+async function bulkPack() {
+  const { inSheet, notIn } = bulk; bulk = null;
+  const el = $('result'); let newly = 0, already = 0;
+  try {
+    for (let i = 0; i < inSheet.length; i += BULK_CHUNK) {
+      el.className = 'card warn';
+      el.innerHTML = `<b class="big">Packing…</b><div class="sub">${fmtN(i)} of ${fmtN(inSheet.length)}</div><i class="upbar"><b style="width:${Math.round(i / inSheet.length * 100)}%"></b></i>`;
+      const r = await api('scanmany', { awbs: inSheet.slice(i, i + BULK_CHUNK), nonce: nonce() }, 3);
+      for (const a of r.awbs) { packed.add(a); seen(a); }
+      newly += r.packed.length; already += r.already.length;
+      renderSoon();
+    }
+    const note = [already && `${fmtN(already)} were already packed`, notIn.length && `${fmtN(notIn.length)} ${esc(notWhat())}`].filter(Boolean).join(', ');
+    el.className = 'card ' + (notIn.length ? 'warn' : 'ok');
+    el.innerHTML = `<b class="big">Packed ${fmtN(newly)}</b><div class="sub">${note || 'All marked Yes'}</div>` + (notIn.length ? notInList(notIn) : '');
+    greenFlash(); feedback(true); if (notIn.length) { setTimeout(redLight, 600); saveUnmatched(notIn); }
+    addRecent(notIn.length ? 'warn' : 'ok', `Bulk paste: ${fmtN(inSheet.length + notIn.length)} AWBs`, `${fmtN(newly)} packed, ${fmtN(already)} already${notIn.length ? `, ${fmtN(notIn.length)} ${notWhat()}` : ''}`);
+  } catch (e) {
+    el.className = 'card bad';
+    el.innerHTML = `<b class="big">Bulk pack stopped</b><div class="sub">${esc(e.message)}. ${fmtN(newly + already)} of ${fmtN(inSheet.length)} were saved. Paste the list again to finish; saved ones count as already packed.</div>`;
+    feedback(false);
+  }
+  renderSoon();
+}
+$('result').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'bulk-go' && bulk) bulkPack(); else if (b.dataset.act === 'bulk-cancel') { bulk = null; $('result').className = 'card'; }
+});
+
+// Camera: reads a band across the middle of the frame at the camera's full resolution.
+// (Shrinking the frame to the on-screen box first, as html5-qrcode does, makes AWB bars too thin to read.)
+// Uses the phone's built-in BarcodeDetector when it knows Code 128 (Android Chrome), else ZXing.
+// The same code is ignored for 3 s so one parcel is not scanned repeatedly.
+const ZXING_URL = 'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js';
+let cam = null, last = '', lastAt = 0, decode = null;
+
+async function getDecoder() {
+  const formats = ['code_128', 'code_39', 'code_93', 'ean_13', 'qr_code'];
+  if ('BarcodeDetector' in window) {
+    const ok = (await BarcodeDetector.getSupportedFormats().catch(() => [])).filter(f => formats.includes(f));
+    if (ok.includes('code_128')) { const d = new BarcodeDetector({ formats: ok }); return async c => (await d.detect(c))[0]?.rawValue; }
+  }
+  if (!window.ZXing) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = ZXING_URL; s.onload = res; s.onerror = () => rej(new Error('could not load the barcode reader')); document.head.appendChild(s); });
+  const Z = window.ZXing, r = new Z.MultiFormatReader();
+  r.setHints(new Map([[Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.CODE_93, Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.QR_CODE]]]));
+  return async c => { try { return r.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(c)))).getText(); } catch { return null; } };
+}
+
+// Back camera, insisted on: the last back camera that worked here, then an exact "environment" camera,
+// then (laptops with one camera) any camera. If a phone still hands over the front camera, switch to one labelled back/rear.
+async function openBackCamera() {
+  const size = { width: { ideal: 1920 }, height: { ideal: 1080 } }, get = video => navigator.mediaDevices.getUserMedia({ audio: false, video });
+  let saved = null; try { saved = localStorage.getItem('backCamId'); } catch {}
+  let stream = null, err = null;
+  for (const c of [saved && { ...size, deviceId: { exact: saved } }, { ...size, facingMode: { exact: 'environment' } }, { ...size, facingMode: 'environment' }].filter(Boolean)) {
+    try { stream = await get(c); break; } catch (e) { err = e; if (/NotAllowed|Security/i.test(e.name)) throw e; }
+  }
+  if (!stream) throw err;
+  const track = stream.getVideoTracks()[0];
+  if (track.getSettings().facingMode === 'user' || /front/i.test(track.label)) {
+    const back = (await navigator.mediaDevices.enumerateDevices()).find(d => d.kind === 'videoinput' && /back|rear|environment/i.test(d.label));
+    if (back) { stream.getTracks().forEach(t => t.stop()); stream = await get({ ...size, deviceId: { exact: back.deviceId } }); }
+  }
+  const s = stream.getVideoTracks()[0];
+  if (s.getSettings().facingMode === 'environment' || /back|rear/i.test(s.label)) try { localStorage.setItem('backCamId', s.getSettings().deviceId); } catch {}
+  return stream;
+}
+
+function stopCam() {
+  if (!cam) return;
+  clearTimeout(cam.timer); cam.stream.getTracks().forEach(t => t.stop()); cam = null;
+  $('reader').replaceChildren(); $('reader').hidden = true; camUi(false);
+}
+function camUi(on) { $('cam').classList.toggle('on', on); $('cam').setAttribute('aria-label', on ? 'Stop camera' : 'Start camera'); }
+
+async function startCam() {
+  $('cam').disabled = true; setTab('scan');
+  try {
+    decode ??= await getDecoder();
+    const stream = await openBackCamera();
+    const v = document.createElement('video'), guide = document.createElement('div'), hint = document.createElement('p');
+    v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.srcObject = stream; guide.className = 'guide';
+    hint.className = 'camhint'; hint.textContent = 'Hold the AWB barcode inside the box';
+    $('reader').replaceChildren(v, guide, hint); $('reader').hidden = false;
+    await v.play();
+    cam = { stream, timer: 0 };
+    camUi(true);
+    const band = document.createElement('canvas'), g = band.getContext('2d', { willReadFrequently: true });
+    const tick = async () => {
+      if (!cam) return;
+      if (v.videoWidth) {
+        const w = v.videoWidth, h = Math.round(v.videoHeight * 0.36), y = Math.round((v.videoHeight - h) / 2);
+        const k2 = Math.min(1, 1280 / w), bw = Math.round(w * k2), bh = Math.round(h * k2); // decode at most 1280 px wide
+        if (band.width !== bw || band.height !== bh) { band.width = bw; band.height = bh; }
+        g.drawImage(v, 0, y, w, h, 0, 0, bw, bh);
+        const text = await decode(band).catch(() => null), k = N(text), now = Date.now();
+        if (k && !(k === last && now - lastAt < 3000)) { last = k; lastAt = now; scan(k); }
+      }
+      if (cam) cam.timer = setTimeout(tick, 40);
+    };
+    tick();
+  } catch (e) {
+    stopCam();
+    const msg = String(e?.name || e?.message || e);
+    show('bad', 'Camera did not start', '', /NotAllowed|Permission/i.test(msg) ? 'camera permission is blocked; allow the camera for this site in the browser settings, then tap Start camera again'
+      : /NotFound|Overconstrained/i.test(msg) ? 'no camera found on this device' : msg);
+  }
+  $('cam').disabled = false;
+}
+$('cam').onclick = () => cam ? stopCam() : startCam();
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopCam(); }); // frees the camera when the phone locks
+
+// onlyTodo = only rows not packed yet; panel = only that marketplace.
+async function download(onlyTodo, panel, btn) {
+  const label = btn.textContent, mi = cols.indexOf('Marketplace');
+  btn.disabled = true; btn.textContent = 'Preparing Excel…';
+  await new Promise(r => setTimeout(r, 50));
+  try {
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet(onlyTodo ? 'Unpacked' : 'Orders');
+    ws.addRow([...cols, 'Packed']).font = { bold: true };
+    const yesFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } }, noFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+    const yesFont = { bold: true, color: { argb: 'FF006100' } }, noFont = { bold: true, color: { argb: 'FF9C0006' } };
+    for (const r of rows) {
+      const yes = packed.has(N(r[ai]));
+      if ((onlyTodo && yes) || (panel && (clean(r[mi]) || 'No marketplace') !== panel)) continue;
+      const c = ws.addRow([...cols.map((_, i) => clean(r[i])), yes ? 'Yes' : 'No']).getCell(cols.length + 1);
+      c.fill = yes ? yesFill : noFill; c.font = yes ? yesFont : noFont;
+    }
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    const url = URL.createObjectURL(new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${onlyTodo ? 'unpacked' : 'orders-packed-status'}${panel ? '-' + panel.replace(/[^\w-]+/g, '-') : ''}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) { upmsg('bad', 'Download failed: ' + e.message); }
+  btn.disabled = false; btn.textContent = label;
+}
+// Blank Excel template for uploads. Sheet 1 "Orders" is what an upload reads; sheet 2 "How to fill" is ignored.
+async function downloadTemplate(btn) {
+  btn.disabled = true;
+  try {
+    const mi = cols.indexOf('Marketplace');
+    const fromSheet = mi >= 0 ? [...new Set(rows.map(r => clean(r[mi])).filter(Boolean))] : [];
+    const panels = (fromSheet.length ? fromSheet : ['Flipkart', 'AJIO Dropship', 'Myntra PPMP', 'Amazon Smart Connect', 'Snapdeal']).filter(x => !/[,"]/.test(x));
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Orders', { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = [{ header: 'AWB Number', width: 24 }, { header: 'SKU', width: 28 }, { header: 'Order ID', width: 24 }, { header: 'Marketplace', width: 24 }];
+    ws.getColumn(1).numFmt = '@'; ws.getColumn(3).numFmt = '@'; // text, so Excel keeps long numbers exactly
+    ws.getRow(1).eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } }; });
+    const pick = { type: 'list', allowBlank: true, showErrorMessage: false, formulae: ['"' + panels.join(',') + '"'] };
+    for (let r = 2; r <= 5001; r++) ws.getCell(r, 4).dataValidation = pick; // dropdown, other names still allowed
+    const help = wb.addWorksheet('How to fill');
+    help.getColumn(1).width = 24; help.getColumn(2).width = 28; help.getColumn(3).width = 22; help.getColumn(4).width = 24;
+    [['How to fill this template'], [],
+     ['1. One row per item in the Orders sheet. A parcel with 2 items = 2 rows with the same AWB Number.'],
+     ['2. AWB Number is required. SKU, Order ID and Marketplace are optional; they show on the scan screen and in panel counts.'],
+     ['3. Keep the header row as it is and start from row 2.'],
+     ['4. In the app open Files, then "Add to current sheet". AWBs already in the sheet are skipped and packed marks are kept.'],
+     [], ['Example (for reference only, do not copy into Orders):'],
+     ['AWB Number', 'SKU', 'Order ID', 'Marketplace'],
+     ['SF3981540088AJI', 'KTTLADIESJEANS823L', '1254973501', 'AJIO Dropship'],
+     ['SF3981540088AJI', 'KTTLADIESJEANS823XL', '1254973501', 'AJIO Dropship'],
+    ].forEach(r => help.addRow(r));
+    help.getRow(1).font = { bold: true, size: 14 }; help.getRow(9).font = { bold: true };
+    const url = URL.createObjectURL(new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'awb-upload-template.xlsx'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) { upmsg('bad', 'Template download failed: ' + e.message); }
+  btn.disabled = false;
+}
+$('tpl').onclick = e => downloadTemplate(e.currentTarget);
+
+// Unmatched AWBs: saved on the server so every phone adds to one shared list.
+function saveUnmatched(list) {
+  const off = list.filter(a => !byAwb.has(a)); // the shared list is only AWBs not in the sheet
+  for (let i = 0; i < off.length; i += 2000) api('unmatched', { awbs: off.slice(i, i + 2000) }, 3).catch(() => {});
+  if (!scanPanel) return;
+  const at = new Date().toISOString(), have = new Set(punm.filter(x => x[0] === scanPanel).map(x => x[1]));
+  for (const a of list) if (!have.has(a)) punm.push([scanPanel, a, at]);
+  for (let i = 0; i < list.length; i += 2000) api('unmatched', { awbs: list.slice(i, i + 2000), panel: scanPanel }, 3).catch(() => {});
+}
+// Still unmatched = not in the sheet now (rows added later can match an AWB scanned earlier).
+async function getUnmatched() { return (await api('unmatched')).items.filter(([a]) => !byAwb.has(a)).sort((x, y) => x[1] < y[1] ? 1 : -1); }
+async function refreshUnmatched() {
+  try { const n = (await getUnmatched()).length; $('dluntext').textContent = `Download unmatched AWBs (${fmtN(n)})`; } catch {}
+}
+$('dlun').onclick = async e => {
+  const btn = e.currentTarget; btn.disabled = true;
+  try {
+    const items = await getUnmatched();
+    $('dluntext').textContent = `Download unmatched AWBs (${fmtN(items.length)})`;
+    if (!items.length) { upmsg('ok', 'No unmatched AWBs: everything scanned so far is in the sheet.'); return; }
+    const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Unmatched', { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = [{ header: 'AWB Number', width: 26 }, { header: 'First scanned (IST)', width: 24 }];
+    ws.getRow(1).font = { bold: true };
+    for (const [a, at] of items) ws.addRow([a, new Date(at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })]);
+    const url = URL.createObjectURL(new Blob([await wb.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const a = document.createElement('a'); a.href = url; a.download = `unmatched-${new Date().toISOString().slice(0, 10)}.xlsx`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (err) { upmsg('bad', 'Could not download unmatched AWBs: ' + err.message); }
+  finally { btn.disabled = false; }
+};
+$('dlall').onclick = e => download(false, null, e.currentTarget);
+$('dltodo').onclick = e => download(true, null, e.currentTarget);
+$('panels').onclick = e => {
+  const b = e.target.closest('.pdl'); if (b) { if (!b.disabled) download(false, b.dataset.panel, b); return; }
+  const row = e.target.closest('[data-open]'); if (row) openDetail(row.dataset.open);
+};
+
+// Upload: parts go up one by one (each retried), then one commit swaps the new sheet in for every phone.
+// mode 'add': the new rows are merged into the current sheet here (new columns appended, AWBs already in
+// the sheet skipped) and the merged sheet is uploaded; the server keeps packed marks. 'replace' starts over.
+async function upload(f, mode) {
+  const prev = { cols, rows, ai, byAwb }, fmt = x => x.toLocaleString('en-IN');
+  busy = true; lockUpload(true);
+  try {
+    upmsg('warn', `Reading ${f.name}…`, -1); await paint();
+    const data = await readFile(f), head = (data.shift() || []).map(canon), hi = head.indexOf('AWB Number');
+    if (hi < 0) throw new Error(NO_AWB);
+    let added = 0, skipped = 0;
+    upmsg('warn', `Checking ${fmt(data.length)} rows…`, 30); await paint();
+    if (mode === 'add' && rows.length) {
+      const merged = [...cols]; for (const c of head) if (c && !merged.includes(c)) merged.push(c);
+      const to = head.map(c => merged.indexOf(c)), fresh = [];
+      for (const r of data) {
+        const k = N(r[hi]); if (!k) continue;
+        if (byAwb.has(k)) { skipped++; continue; }
+        const row = merged.map(() => ''); r.forEach((v, j) => { if (to[j] >= 0) row[to[j]] = v; }); fresh.push(row);
+      }
+      if (!fresh.length) { upmsg('warn', `Nothing new to add: all ${fmt(skipped)} rows have AWBs already in the sheet.`); busy = false; lockUpload(false); return; }
+      added = fresh.length;
+      setSheet(merged, [...rows.map(r => merged.map((_, j) => r[j] ?? '')), ...fresh]);
+    } else {
+      mode = 'replace';
+      setSheet(head, data);
+      if (packed.size && !confirm(`Replace the current sheet? ${packed.size} packed AWBs will be cleared for everyone.`)) { ({ cols, rows, ai, byAwb } = prev); busy = false; lockUpload(false); upmsg('warn', 'Replace cancelled. Nothing was changed.'); return render(); }
+    }
+    upmsg('warn', `Compressing ${fmt(rows.length)} rows…`, 45); await paint();
+    const text = Papa.unparse([cols, ...rows]);
+    const b64 = await gzip(text), n = Math.ceil(b64.length / PART), id = nonce();
+    if (n > 20) throw new Error('sheet is too big (over 60 MB compressed)');
+    for (let i = 0; i < n; i++) {
+      upmsg('warn', n > 1 ? `Uploading part ${i + 1} of ${n}…` : 'Uploading…', Math.round(55 + 40 * i / n));
+      await api('put', { id, i, gz: b64.slice(i * PART, (i + 1) * PART) }, 4);
+    }
+    upmsg('warn', 'Saving…', 97);
+    const r = await api('commit', { id, n, mode });
+    ver = r.ver;
+    if (mode === 'add') upmsg('ok', `Added ${fmt(added)} ${added === 1 ? 'row' : 'rows'}${skipped ? `, skipped ${fmt(skipped)} with AWBs already in the sheet` : ''}. Packed marks kept; now ${fmt(rows.length)} rows.`);
+    else { log = ['v:' + r.ver]; packed = new Set(); times = new Map(); timesAt = 0; loadRecent(); upmsg('ok', `Sheet uploaded: ${fmt(rows.length)} rows, ready to scan on every phone.`); }
+    render();
+  } catch (err) { upmsg('bad', 'Upload failed: ' + err.message + '. Nothing was changed; try again.'); ({ cols, rows, ai, byAwb } = prev); log = []; }
+  busy = false; lockUpload(false); sync();
+}
+const pick = mode => e => { const f = e.target.files[0]; e.target.value = ''; if (f) upload(f, mode); };
+$('file').onchange = pick('replace');
+$('fileadd').onchange = pick('add');
+
+const ICONS = {"ok": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12.5l4.5 4.5L19 7.5\"/></svg>", "warn": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M12 7v6M12 17h.01\"/></svg>", "bad": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M7 7l10 10M17 7L7 17\"/></svg>"};
+const DL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+const greet = () => { const d = new Date(); $('today').textContent = d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }); const h = d.getHours(); $('hello').textContent = 'Hello Akshay, ' + (h < 12 ? 'good morning' : h < 17 ? 'good afternoon' : 'good evening'); };
+greet(); setInterval(greet, 60000);
+sync(); setInterval(sync, 10000); document.addEventListener('visibilitychange', sync);
+</script>
+</body>
+</html>
